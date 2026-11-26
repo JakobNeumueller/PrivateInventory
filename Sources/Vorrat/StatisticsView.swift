@@ -8,6 +8,7 @@ struct StatisticsView: View {
     let history: [HistoryEntry]
 
     @Environment(\.modelContext) private var context
+    @State private var confirmReset = false
 
     private struct ChartPoint: Identifiable {
         var month: Date
@@ -91,6 +92,25 @@ struct StatisticsView: View {
         }
         .navigationTitle("Statistik")
         .navigationSubtitle("\(stats.totalConsumed) verbraucht · \(stats.totalDiscarded) weggeworfen insgesamt")
+        .toolbar {
+            ToolbarItem {
+                Button(role: .destructive) { confirmReset = true } label: {
+                    Label("Statistik zurücksetzen", systemImage: "arrow.counterclockwise")
+                }
+                .help("Löscht den gesamten Verlauf (der Vorrat selbst bleibt unverändert)")
+            }
+        }
+        .confirmationDialog("Statistik zurücksetzen?", isPresented: $confirmReset) {
+            Button("Verlauf löschen (\(history.count) Einträge)", role: .destructive) { resetHistory() }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Alle Einträge zu „Verbraucht“ und „Weggeworfen“ werden gelöscht. Deine Artikel im Vorrat bleiben erhalten. Direkt danach lässt sich das mit ⌘Z rückgängig machen.")
+        }
+    }
+
+    private func resetHistory() {
+        // Einzeln löschen, damit ⌘Z (Undo) funktioniert.
+        for entry in history { context.delete(entry) }
     }
 
     // MARK: - Bausteine
