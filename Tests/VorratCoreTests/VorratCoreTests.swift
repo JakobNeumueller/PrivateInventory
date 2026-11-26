@@ -205,6 +205,24 @@ final class VorratCoreTests: XCTestCase {
         XCTAssertEqual(parsed.records, original)
     }
 
+    func testRecipeRequestContainsInventoryAndAllowsShopping() {
+        let records = [ItemRecord(name: "Kichererbsen", location: "Vorratsschrank", quantity: 2, unit: "Dose",
+                                  purchaseDate: day(2026, 11, 20), expiryDate: day(2026, 11, 28))]
+        let md = ExportFormatter(now: now, calendar: calendar).markdown(records)
+        let prompt = AIPrompts.recipeRequest(inventoryMarkdown: md, servings: 3, wishes: "  vegetarisch ")
+        XCTAssertTrue(prompt.hasSuffix(md))
+        XCTAssertTrue(prompt.contains("Kichererbsen"))
+        XCTAssertTrue(prompt.contains("NICHT auf das Vorhandene beschränken"))
+        XCTAssertTrue(prompt.contains("Muss eingekauft werden"))
+        XCTAssertTrue(prompt.contains("Einkaufsliste"))
+        XCTAssertTrue(prompt.contains("für 3 Personen"))
+        XCTAssertTrue(prompt.contains("Meine Wünsche: vegetarisch"))
+
+        let plain = AIPrompts.recipeRequest(inventoryMarkdown: md)
+        XCTAssertFalse(plain.contains("Personen"))
+        XCTAssertFalse(plain.contains("Meine Wünsche"))
+    }
+
     func testReceiptPromptMentionsFormat() {
         let prompt = AIPrompts.receiptToJSON(today: now, calendar: calendar)
         XCTAssertTrue(prompt.contains("\"items\""))

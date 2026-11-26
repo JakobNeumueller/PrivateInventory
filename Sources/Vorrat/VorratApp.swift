@@ -11,7 +11,7 @@ final class AppState {
         case newItem
         case edit(Item)
         case importItems(prefill: String)
-        case export
+        case export(ExportView.Format)
 
         var id: String {
             switch self {
@@ -52,8 +52,10 @@ struct VorratApp: App {
                 Divider()
                 Button("Einkauf importieren …") { appState.sheet = .importItems(prefill: "") }
                     .keyboardShortcut("i")
-                Button("Vorrat exportieren …") { appState.sheet = .export }
+                Button("Vorrat exportieren …") { appState.sheet = .export(.markdown) }
                     .keyboardShortcut("e")
+                Button("Rezeptideen (Prompt) …") { appState.sheet = .export(.recipePrompt) }
+                    .keyboardShortcut("r")
             }
         }
 

@@ -31,11 +31,39 @@ public enum AIPrompts {
         """
     }
 
-    /// Wird optional vor den Markdown-Export gestellt.
-    public static let recipeSuggestions = """
-    Hier ist mein aktueller Vorrat. Schlage mir 3–5 Rezepte vor, die möglichst viel davon verwenden – vor allem die Artikel unter „Bitte bevorzugt verwenden". Gib zu jedem Rezept an, welche Zutaten aus meinem Vorrat es nutzt und was ich ggf. noch zukaufen müsste (möglichst wenig). Grundzutaten wie Salz, Pfeffer, Öl und Wasser kannst du als vorhanden annehmen.
-
-    ---
-
-    """
+    /// Fertiger Prompt für Rezeptvorschläge inkl. aktuellem Vorrat.
+    /// Erlaubt ausdrücklich Rezepte, für die noch eingekauft werden muss – fehlende Zutaten werden ausgewiesen.
+    /// - Parameters:
+    ///   - inventoryMarkdown: Ergebnis von `ExportFormatter.markdown(_:)`
+    ///   - servings: Anzahl Personen (`nil` = keine Angabe)
+    ///   - wishes: freie Wünsche, z.B. „vegetarisch, max. 30 Minuten"
+    public static func recipeRequest(inventoryMarkdown: String, servings: Int? = nil, wishes: String = "") -> String {
+        var lines: [String] = []
+        lines.append("Ich suche Rezeptideen. Unten findest du meinen aktuellen Vorrat (Kühlschrank, Gefrierschrank, Vorratsschrank).")
+        lines.append("")
+        lines.append("So wünsche ich mir die Vorschläge:")
+        lines.append("- Schlage 4–6 Rezepte vor, die möglichst viel aus meinem Vorrat verwenden – vor allem die Artikel unter „Bitte bevorzugt verwenden“, weil sie bald ablaufen oder schon lange unbenutzt herumliegen.")
+        lines.append("- Du musst dich NICHT auf das Vorhandene beschränken: Wenn ein Rezept mit ein paar zusätzlichen Zutaten deutlich besser oder überhaupt erst möglich wird, schlag es trotzdem vor – ich kann noch einkaufen gehen.")
+        lines.append("- Mische: mindestens ein Rezept, das komplett mit dem Vorhandenen auskommt, und einige, für die nur wenige Zutaten fehlen.")
+        lines.append("- Gib pro Rezept an:")
+        lines.append("  - Name und eine kurze Beschreibung")
+        lines.append("  - ungefähre Zubereitungszeit")
+        lines.append("  - **Aus dem Vorrat:** welche meiner Artikel verwendet werden")
+        lines.append("  - **Muss eingekauft werden:** fehlende Zutaten mit Menge (oder „nichts“)")
+        lines.append("  - kurze Zubereitungsschritte")
+        lines.append("- Am Ende: eine zusammengefasste **Einkaufsliste** mit allen fehlenden Zutaten, sortiert nach Supermarkt-Bereich, damit ich sie direkt mitnehmen kann.")
+        lines.append("- Salz, Pfeffer, Speiseöl und Wasser kannst du als vorhanden annehmen.")
+        lines.append("- Abgelaufene Artikel nur einplanen, wenn sie typischerweise noch gut sind (z.B. Trockenware nach dem MHD) – und weise darauf hin, sie vorher zu prüfen.")
+        if let servings, servings > 0 {
+            lines.append("- Mengenangaben bitte für \(servings) \(servings == 1 ? "Person" : "Personen").")
+        }
+        let trimmedWishes = wishes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedWishes.isEmpty {
+            lines.append("- Meine Wünsche: \(trimmedWishes)")
+        }
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        return lines.joined(separator: "\n") + "\n" + inventoryMarkdown
+    }
 }

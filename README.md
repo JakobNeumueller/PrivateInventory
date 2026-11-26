@@ -11,7 +11,8 @@ damit nichts doppelt gekauft wird und nichts vergessen wird, bis es schlecht ist
   - 🟣 *Vergessen* – seit 30 Tagen nicht benutzt (gerechnet ab „Heute benutzt" bzw. Kaufdatum)
 - **Schnellaktionen**: *Heute benutzt*, *Menge −1*, *Aufgebraucht* – per Toolbar, Rechtsklick oder Mehrfachauswahl. ⌘Z macht rückgängig.
 - **Massenimport** als JSON (z.B. von einer KI aus einem Foto deines Kassenzettels) – mit Vorschau und Hinweis „schon im Vorrat".
-- **Export** als Markdown (ideal, um eine KI nach Rezepten zu fragen) oder JSON (Backup, wieder importierbar).
+- **Rezeptideen**: erstellt einen fertigen KI-Prompt inkl. aller Zutaten – die KI darf auch Rezepte vorschlagen, für die noch etwas fehlt, und liefert dazu eine Einkaufsliste.
+- **Export** als Bestandsliste (Markdown) oder JSON (Backup, wieder importierbar).
 
 Alle Daten bleiben lokal auf deinem Mac (`~/Library/Application Support/Vorrat/`).
 
@@ -79,8 +80,16 @@ Der Import ist bewusst tolerant: ein reines Array `[ … ]` geht auch, Text oder
 
 ## Rezepte vorschlagen lassen
 
-**Exportieren** (⌘E) → Format *Markdown* → „Rezept-Prompt voranstellen" anlassen → **In Zwischenablage kopieren** → bei einer KI einfügen.
-Der Export listet oben alles unter *„Bitte bevorzugt verwenden"*, was bald abläuft oder vergessen wurde.
+Toolbar **Rezeptideen** (⌘R) → optional Personenzahl und Wünsche (z.B. „vegetarisch, max. 30 Minuten") eintragen → **In Zwischenablage kopieren** → bei einer KI einfügen.
+
+Der Prompt enthält deinen kompletten Vorrat – mit allem, was bald abläuft oder vergessen wurde, unter *„Bitte bevorzugt verwenden"* ganz oben – und bittet die KI um:
+- Rezepte, die möglichst viel davon verwenden,
+- ausdrücklich auch Rezepte, für die noch ein paar Zutaten fehlen (jeweils mit „Muss eingekauft werden"),
+- eine zusammengefasste Einkaufsliste am Ende.
+
+## App-Icon
+
+Liegt in `Resources/` (`AppIcon.svg` als Vorlage, `AppIcon-1024.png`, `AppIcon.icns`) und wird von `scripts/build-app.sh` automatisch eingebaut. Beim Start direkt aus Xcode zeigt das Dock das Standard-Symbol – das ist normal.
 
 ## Einstellungen
 
@@ -92,5 +101,6 @@ Unter **Vorrat → Einstellungen …** (⌘,) lassen sich die Schwellen für „
 Sources/VorratCore/   Reine Logik (Import-Parser, Status-Regeln, Export, KI-Prompts) – plattformunabhängig
 Sources/Vorrat/       SwiftUI + SwiftData App
 Tests/                XCTest für VorratCore
+Resources/            App-Icon
 scripts/build-app.sh  Baut ein .app-Bundle
 ```

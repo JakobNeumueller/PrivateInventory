@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import VorratCore
 
-/// Export des Bestands als Markdown (für KI/Rezepte) oder JSON (Backup).
+/// Export des Bestands: als fertiger Rezept-Prompt, als Markdown-Liste oder als JSON (Backup).
 struct ExportView: View {
     let allItems: [Item]
     let visibleItems: [Item]
@@ -12,24 +12,57 @@ struct ExportView: View {
     @Environment(\.dismiss) private var dismiss
 
     enum Format: String, CaseIterable, Identifiable {
-        case markdown = "Markdown (für KI)"
+        case recipePrompt = "Rezept-Prompt"
+        case markdown = "Bestandsliste"
         case json = "JSON (Backup)"
         var id: String { rawValue }
-        var fileExtension: String { self == .markdown ? "md" : "json" }
+
+        var fileExtension: String {
+            switch self {
+            case .recipePrompt: return "txt"
+            case .markdown: return "md"
+            case .json: return "json"
+            }
+        }
+
+        var fileName: String {
+            switch self {
+            case .recipePrompt: return "rezept-prompt"
+            case .markdown, .json: return "vorrat"
+            }
+        }
+
+        var hint: String {
+            switch self {
+            case .recipePrompt: return "Fertiger Prompt inkl. aller Zutaten – einfach bei einer KI einfügen. Die KI darf auch Rezepte vorschlagen, für die noch etwas eingekauft werden muss, und erstellt dafür eine Einkaufsliste."
+            case .markdown: return "Übersicht des Vorrats, gruppiert nach Ort – mit dem, was bald verbraucht werden sollte, ganz oben."
+            case .json: return "Vollständige Sicherung – lässt sich über „Importieren“ wieder einlesen."
+            }
+        }
     }
 
-    @State private var format: Format = .markdown
-    @State private var includeRecipePrompt = true
+    @State private var format: Format
     @State private var onlyVisible = false
     @State private var copied = false
+    @AppStorage("recipeServings") private var servings = 2
+    @AppStorage("recipeWishes") private var wishes = ""
+
+    init(initialFormat: Format = .recipePrompt, allItems: [Item], visibleItems: [Item], viewTitle: String, rules: StatusRules) {
+        _format = State(initialValue: initialFormat)
+        self.allItems = allItems
+        self.visibleItems = visibleItems
+        self.viewTitle = viewTitle
+        self.rules = rules
+    }
 
     private var output: String {
         let records = (onlyVisible ? visibleItems : allItems).map(\.record)
         let formatter = ExportFormatter(rules: rules)
         switch format {
+        case .recipePrompt:
+            return AIPrompts.recipeRequest(inventoryMarkdown: formatter.markdown(records), servings: servings, wishes: wishes)
         case .markdown:
-            let md = formatter.markdown(records)
-            return includeRecipePrompt ? AIPrompts.recipeSuggestions + md : md
+            return formatter.markdown(records)
         case .json:
             return formatter.json(records)
         }
@@ -46,18 +79,29 @@ struct ExportView: View {
                     ForEach(Format.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 320)
+                .labelsHidden()
+                .frame(maxWidth: 420)
 
-                if format == .markdown {
-                    Toggle("Rezept-Prompt voranstellen", isOn: $includeRecipePrompt)
-                }
                 if visibleItems.count != allItems.count {
-                    Toggle("Nur „\(viewTitle)\" (\(visibleItems.count))", isOn: $onlyVisible)
+                    Toggle("Nur „\(viewTitle)“ (\(visibleItems.count))", isOn: $onlyVisible)
                 }
             }
-            .onChange(of: format) { copied = false }
-            .onChange(of: includeRecipePrompt) { copied = false }
-            .onChange(of: onlyVisible) { copied = false }
+
+            Text(format.hint)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if format == .recipePrompt {
+                HStack(spacing: 16) {
+                    Stepper(value: $servings, in: 1...12) {
+                        Text(servings == 1 ? "für 1 Person" : "für \(servings) Personen")
+                    }
+                    .fixedSize()
+                    TextField("Wünsche", text: $wishes, prompt: Text("Wünsche, z.B. vegetarisch, max. 30 Minuten, etwas Asiatisches"))
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
 
             ScrollView {
                 Text(output)
@@ -83,13 +127,14 @@ struct ExportView: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
+        .onChange(of: output) { copied = false }
         .padding(20)
         .frame(minWidth: 700, minHeight: 520)
     }
 
     private func save(_ text: String) {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "vorrat-\(ExportFormatter.isoDate(Date())).\(format.fileExtension)"
+        panel.nameFieldStringValue = "\(format.fileName)-\(ExportFormatter.isoDate(Date())).\(format.fileExtension)"
         panel.canCreateDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
             do {

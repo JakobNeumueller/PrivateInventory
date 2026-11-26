@@ -80,8 +80,8 @@ struct ContentView: View {
                 ItemEditorView(item: item, existingItems: items)
             case .importItems(let prefill):
                 ImportView(initialText: prefill, existingItems: items)
-            case .export:
-                ExportView(allItems: items, visibleItems: visibleItems, viewTitle: currentTitle, rules: rules)
+            case .export(let format):
+                ExportView(initialFormat: format, allItems: items, visibleItems: visibleItems, viewTitle: currentTitle, rules: rules)
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
@@ -237,10 +237,15 @@ struct ContentView: View {
             }
             .help("Einkauf als JSON importieren (⌘I)")
 
-            Button { appState.sheet = .export } label: {
+            Button { appState.sheet = .export(.markdown) } label: {
                 Label("Exportieren", systemImage: "square.and.arrow.up")
             }
-            .help("Vorrat exportieren, z.B. für Rezeptvorschläge (⌘E)")
+            .help("Vorrat als Liste oder JSON exportieren (⌘E)")
+
+            Button { appState.sheet = .export(.recipePrompt) } label: {
+                Label("Rezeptideen", systemImage: "fork.knife")
+            }
+            .help("Prompt mit allen Zutaten für Rezeptvorschläge einer KI erstellen (⌘R)")
         }
     }
 

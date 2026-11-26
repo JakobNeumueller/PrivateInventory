@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2FA37A"/>
+      <stop offset="1" stop-color="#17694F"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.32" r="0.6">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD166"/>
+      <stop offset="1" stop-color="#E9A23B"/>
+    </linearGradient>
+    <linearGradient id="layer1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4A259"/><stop offset="1" stop-color="#E07A3A"/>
+    </linearGradient>
+    <linearGradient id="layer2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F7E6C4"/><stop offset="1" stop-color="#E8CF9F"/>
+    </linearGradient>
+    <linearGradient id="layer3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9BD16B"/><stop offset="1" stop-color="#6DAE45"/>
+    </linearGradient>
+    <clipPath id="jarInside">
+      <rect x="318" y="356" width="388" height="452" rx="70"/>
+    </clipPath>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0b3326" flood-opacity="0.35"/>
+    </filter>
+    <filter id="iconShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <!-- macOS-Icon-Raster: 824×824 Squircle mit 100px Rand -->
+  <g filter="url(#iconShadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+
+  <g filter="url(#shadow)">
+    <!-- Glas-Körper -->
+    <rect x="300" y="330" width="424" height="498" rx="86" fill="#ffffff" fill-opacity="0.18" stroke="#ffffff" stroke-opacity="0.85" stroke-width="14"/>
+    <!-- Inhalt in Schichten -->
+    <g clip-path="url(#jarInside)">
+      <rect x="300" y="690" width="424" height="140" fill="url(#layer3)"/>
+      <path d="M300 700 Q 400 676 512 696 T 724 688 L724 700 L300 700 Z" fill="url(#layer3)"/>
+      <rect x="300" y="580" width="424" height="118" fill="url(#layer2)"/>
+      <path d="M300 590 Q 410 566 512 584 T 724 578 L724 592 L300 592 Z" fill="url(#layer2)"/>
+      <rect x="300" y="476" width="424" height="112" fill="url(#layer1)"/>
+      <path d="M300 486 Q 420 456 520 478 T 724 470 L724 490 L300 490 Z" fill="url(#layer1)"/>
+      <!-- Körnchen-Textur -->
+      <g fill="#ffffff" fill-opacity="0.28">
+        <circle cx="360" cy="520" r="9"/><circle cx="430" cy="545" r="8"/><circle cx="520" cy="515" r="9"/>
+        <circle cx="600" cy="548" r="8"/><circle cx="660" cy="512" r="9"/>
+        <circle cx="380" cy="640" r="8"/><circle cx="470" cy="625" r="7"/><circle cx="560" cy="655" r="8"/><circle cx="650" cy="630" r="7"/>
+        <circle cx="350" cy="750" r="10"/><circle cx="440" cy="770" r="9"/><circle cx="535" cy="745" r="10"/><circle cx="620" cy="775" r="9"/><circle cx="680" cy="740" r="8"/>
+      </g>
+    </g>
+    <!-- Glanz -->
+    <rect x="338" y="390" width="34" height="360" rx="17" fill="#ffffff" fill-opacity="0.55"/>
+    <rect x="390" y="400" width="14" height="150" rx="7" fill="#ffffff" fill-opacity="0.35"/>
+    <!-- Hals + Deckel -->
+    <rect x="336" y="296" width="352" height="54" rx="20" fill="#ffffff" fill-opacity="0.9"/>
+    <rect x="318" y="210" width="388" height="100" rx="30" fill="url(#lid)"/>
+    <g stroke="#C9842A" stroke-width="8" stroke-linecap="round" opacity="0.55">
+      <line x1="370" y1="236" x2="370" y2="284"/><line x1="420" y1="236" x2="420" y2="284"/>
+      <line x1="470" y1="236" x2="470" y2="284"/><line x1="520" y1="236" x2="520" y2="284"/>
+      <line x1="570" y1="236" x2="570" y2="284"/><line x1="620" y1="236" x2="620" y2="284"/>
+      <line x1="660" y1="236" x2="660" y2="284"/>
+    </g>
+    <rect x="318" y="210" width="388" height="30" rx="15" fill="#ffffff" fill-opacity="0.25"/>
+  </g>
+
+  <!-- Etikett mit Häkchen -->
+  <g filter="url(#shadow)">
+    <circle cx="700" cy="720" r="118" fill="#ffffff"/>
+    <circle cx="700" cy="720" r="96" fill="#2FA37A"/>
+    <path d="M650 722 L688 760 L756 684" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
