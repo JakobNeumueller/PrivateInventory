@@ -9,6 +9,7 @@ struct StatisticsView: View {
 
     @Environment(\.modelContext) private var context
     @State private var confirmReset = false
+    @State private var confirmResetFinal = false
 
     private struct ChartPoint: Identifiable {
         var month: Date
@@ -101,10 +102,21 @@ struct StatisticsView: View {
             }
         }
         .confirmationDialog("Statistik zurücksetzen?", isPresented: $confirmReset) {
-            Button("Verlauf löschen (\(history.count) Einträge)", role: .destructive) { resetHistory() }
+            Button("Verlauf löschen (\(history.count) Einträge) …", role: .destructive) {
+                // Zweite Abfrage erst zeigen, wenn die erste geschlossen ist.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { confirmResetFinal = true }
+            }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Alle Einträge zu „Verbraucht“ und „Weggeworfen“ werden gelöscht. Deine Artikel im Vorrat bleiben erhalten. Direkt danach lässt sich das mit ⌘Z rückgängig machen.")
+            Text("Alle Einträge zu „Verbraucht“ und „Weggeworfen“ werden gelöscht. Deine Artikel im Vorrat bleiben erhalten.")
+        }
+        .alert("Bist du wirklich sicher?", isPresented: $confirmResetFinal) {
+            // „Abbrechen“ ist die Standardtaste – ein versehentliches ⏎ löscht nichts.
+            Button("Abbrechen", role: .cancel) {}
+                .keyboardShortcut(.defaultAction)
+            Button("Ja, endgültig löschen", role: .destructive) { resetHistory() }
+        } message: {
+            Text("Deine gesamte Statistik (\(history.count) Einträge) wird gelöscht. Nur direkt danach lässt sich das noch mit ⌘Z rückgängig machen.")
         }
     }
 

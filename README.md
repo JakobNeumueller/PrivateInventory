@@ -101,7 +101,7 @@ Liegt in `Resources/` (`AppIcon.svg` als Vorlage, `AppIcon-1024.png`, `AppIcon.i
 - **Weggeworfen**: zählt als weggeworfen – inkl. Vermerk, ob der Artikel schon abgelaufen war.
 - **Löschen (Fehleingabe)** bzw. ⌫: entfernt ohne Eintrag in der Statistik.
 
-Die Auswertung findest du in der Seitenleiste unter **Statistik**; einzelne Verlaufseinträge lassen sich dort per Rechtsklick löschen, der ganze Verlauf über den Knopf **„Statistik zurücksetzen“** in der Toolbar (mit Sicherheitsabfrage, der Vorrat bleibt unverändert).
+Die Auswertung findest du in der Seitenleiste unter **Statistik**; einzelne Verlaufseinträge lassen sich dort per Rechtsklick löschen, der ganze Verlauf über den Knopf **„Statistik zurücksetzen“** in der Toolbar (mit doppelter Sicherheitsabfrage, der Vorrat bleibt unverändert).
 
 ## Einstellungen
 
