@@ -100,6 +100,16 @@ struct ContentView: View {
         .onAppear { context.undoManager = undoManager }
     }
 
+    /// Wird gerade die Tabelle angezeigt? Nur dann ergeben die Auswahl-Knöpfe in der Toolbar Sinn –
+    /// „Heute“ hat eigene Knöpfe pro Zeile, „Statistik“ zeigt keine Artikel.
+    private var showsTable: Bool {
+        guard trimmedSearch.isEmpty else { return true }
+        switch filter ?? .all {
+        case .today, .statistics: return false
+        default: return !items.isEmpty
+        }
+    }
+
     private var currentTitle: String {
         trimmedSearch.isEmpty ? (filter ?? .all).title : "Suche: „\(trimmedSearch)“"
     }
@@ -244,7 +254,27 @@ struct ContentView: View {
                 Label("Neuer Artikel", systemImage: "plus")
             }
             .help("Neuen Artikel anlegen (⌘N)")
+        }
+        if showsTable {
+            selectionToolbarItems
+        }
+        ToolbarItemGroup(placement: .automatic) {
+            Button { appState.sheet = .importItems(prefill: "") } label: {
+                Label("Importieren", systemImage: "square.and.arrow.down")
+            }
+            .help("Einkauf als JSON importieren (⌘I)")
 
+            Button { appState.sheet = .export(nil) } label: {
+                Label("Exportieren", systemImage: "square.and.arrow.up")
+            }
+            .help("Rezept-Prompt, Bestandsliste oder Backup exportieren (⌘E)")
+        }
+    }
+
+    /// Knöpfe, die auf die markierten Tabellenzeilen wirken.
+    @ToolbarContentBuilder
+    private var selectionToolbarItems: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
             Button { actions.markUsed(itemsFor(selection)) } label: {
                 Label("Heute benutzt", systemImage: "hand.tap")
             }
@@ -268,17 +298,6 @@ struct ContentView: View {
             }
             .help("Auswahl weggeworfen – wird in der Statistik gezählt (⌘Z macht rückgängig)")
             .disabled(selection.isEmpty)
-        }
-        ToolbarItemGroup(placement: .automatic) {
-            Button { appState.sheet = .importItems(prefill: "") } label: {
-                Label("Importieren", systemImage: "square.and.arrow.down")
-            }
-            .help("Einkauf als JSON importieren (⌘I)")
-
-            Button { appState.sheet = .export(nil) } label: {
-                Label("Exportieren", systemImage: "square.and.arrow.up")
-            }
-            .help("Rezept-Prompt, Bestandsliste oder Backup exportieren (⌘E)")
         }
     }
 
