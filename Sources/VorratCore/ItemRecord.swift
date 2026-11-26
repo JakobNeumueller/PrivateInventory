@@ -41,6 +41,28 @@ public struct ItemRecord: Equatable, Sendable {
 
     /// Letzter Zeitpunkt, an dem der Artikel „angefasst" wurde (benutzt oder gekauft).
     public var lastTouchedDate: Date { lastUsedDate ?? purchaseDate }
+
+    /// Nachkauf zu einem vorhandenen Artikel hinzufügen.
+    /// - Menge wird addiert
+    /// - Kaufdatum = das neuere (der Artikel ist damit nicht mehr „vergessen")
+    /// - Ablaufdatum = das frühere, denn die alte Ware ist noch da und läuft zuerst ab
+    /// - Name, Ort, Kategorie und Einheit bleiben vom bestehenden Artikel
+    public func merged(with new: ItemRecord) -> ItemRecord {
+        var result = self
+        result.quantity += new.quantity
+        result.purchaseDate = max(purchaseDate, new.purchaseDate)
+        switch (expiryDate, new.expiryDate) {
+        case let (a?, b?): result.expiryDate = min(a, b)
+        case let (a?, nil): result.expiryDate = a
+        case let (nil, b?): result.expiryDate = b
+        case (nil, nil): result.expiryDate = nil
+        }
+        let newNotes = new.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newNotes.isEmpty && !notes.localizedCaseInsensitiveContains(newNotes) {
+            result.notes = notes.isEmpty ? newNotes : notes + "; " + newNotes
+        }
+        return result
+    }
 }
 
 /// Standardwerte und Vorschlagslisten.
@@ -97,5 +119,25 @@ public enum Matching {
         if ka.count >= 4, kb.contains(ka) { return true }
         if kb.count >= 4, ka.contains(kb) { return true }
         return false
+    }
+
+    /// Gleicher Name, ohne Gross-/Kleinschreibung und Akzente.
+    public static func isSameName(_ a: String, _ b: String) -> Bool {
+        let ka = a.comparisonKey
+        return !ka.isEmpty && ka == b.comparisonKey
+    }
+
+    /// Gleiche Einheit (z.B. "L" und "l").
+    public static func isSameUnit(_ a: String, _ b: String) -> Bool {
+        a.comparisonKey == b.comparisonKey
+    }
+
+    /// Index des besten vorhandenen Artikels, zu dem ein neuer Eintrag addiert werden kann:
+    /// ähnlicher Name **und** gleiche Einheit. Exakte Namensgleichheit wird bevorzugt.
+    public static func mergeCandidate(for record: ItemRecord, in existing: [ItemRecord]) -> Int? {
+        let candidates = existing.indices.filter {
+            isSameUnit(existing[$0].unit, record.unit) && isSimilar(existing[$0].name, record.name)
+        }
+        return candidates.first(where: { isSameName(existing[$0].name, record.name) }) ?? candidates.first
     }
 }

@@ -11,7 +11,15 @@ struct SidebarView: View {
         let statuses = items.map { $0.status(rules, now: now) }
 
         List(selection: $filter) {
-            Section("Übersicht") {
+            Section {
+                Label("Heute", systemImage: "sun.max")
+                    .badge(statuses.filter(\.needsAttention).count)
+                    .tag(SidebarFilter.today)
+                Label("Statistik", systemImage: "chart.bar")
+                    .tag(SidebarFilter.statistics)
+            }
+
+            Section("Vorrat") {
                 Label("Alle Artikel", systemImage: "tray.full")
                     .badge(items.count)
                     .tag(SidebarFilter.all)

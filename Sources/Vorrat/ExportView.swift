@@ -41,14 +41,16 @@ struct ExportView: View {
         }
     }
 
-    @State private var format: Format
+    /// Zuletzt gewähltes Format wird gemerkt.
+    @AppStorage("exportFormat") private var format: Format = .recipePrompt
+    private let initialFormat: Format?
     @State private var onlyVisible = false
     @State private var copied = false
     @AppStorage("recipeServings") private var servings = 2
     @AppStorage("recipeWishes") private var wishes = ""
 
-    init(initialFormat: Format = .recipePrompt, allItems: [Item], visibleItems: [Item], viewTitle: String, rules: StatusRules) {
-        _format = State(initialValue: initialFormat)
+    init(initialFormat: Format? = nil, allItems: [Item], visibleItems: [Item], viewTitle: String, rules: StatusRules) {
+        self.initialFormat = initialFormat
         self.allItems = allItems
         self.visibleItems = visibleItems
         self.viewTitle = viewTitle
@@ -72,7 +74,7 @@ struct ExportView: View {
         let output = self.output
 
         VStack(alignment: .leading, spacing: 12) {
-            Text("Vorrat exportieren").font(.title2.bold())
+            Text("Exportieren & Rezeptideen").font(.title2.bold())
 
             HStack(spacing: 16) {
                 Picker("Format", selection: $format) {
@@ -80,7 +82,7 @@ struct ExportView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(maxWidth: 420)
+                .fixedSize()
 
                 if visibleItems.count != allItems.count {
                     Toggle("Nur „\(viewTitle)“ (\(visibleItems.count))", isOn: $onlyVisible)
@@ -98,7 +100,7 @@ struct ExportView: View {
                         Text(servings == 1 ? "für 1 Person" : "für \(servings) Personen")
                     }
                     .fixedSize()
-                    TextField("Wünsche", text: $wishes, prompt: Text("Wünsche, z.B. vegetarisch, max. 30 Minuten, etwas Asiatisches"))
+                    TextField("Wünsche", text: $wishes, prompt: Text("Wünsche, z.B. vegetarisch, schnell"))
                         .textFieldStyle(.roundedBorder)
                 }
             }
@@ -128,8 +130,10 @@ struct ExportView: View {
             }
         }
         .onChange(of: output) { copied = false }
+        .onAppear { if let initialFormat { format = initialFormat } }
         .padding(20)
-        .frame(minWidth: 700, minHeight: 520)
+        // Feste Grösse: Sonst nimmt das Sheet die Breite der längsten Textzeile an.
+        .frame(width: 720, height: 600)
     }
 
     private func save(_ text: String) {

@@ -12,6 +12,8 @@ struct ImportView: View {
 
     @State private var text: String
     @State private var excluded = Set<Int>()
+    /// Vom Nutzer geänderte Entscheidung „addieren statt neu anlegen“ je Zeile.
+    @State private var mergeOverrides: [Int: Bool] = [:]
     @State private var showFilePicker = false
     @State private var promptCopied = false
     @State private var fileError: String?
@@ -23,9 +25,39 @@ struct ImportView: View {
 
     private var result: ImportResult { ImportParser().parse(text) }
 
+    /// Plan für eine Zeile: neu anlegen oder zu einem vorhandenen Artikel addieren.
+    private struct RowPlan {
+        var candidate: Item?
+        var merge: Bool
+    }
+
+    private func plans(for records: [ItemRecord]) -> [RowPlan] {
+        let existingRecords = existingItems.map(\.record)
+        return records.enumerated().map { index, record in
+            guard let c = Matching.mergeCandidate(for: record, in: existingRecords) else {
+                return RowPlan(candidate: nil, merge: false)
+            }
+            let item = existingItems[c]
+            // Vorbelegung: nur bei exakt gleichem Namen automatisch addieren.
+            let merge = mergeOverrides[index] ?? Matching.isSameName(item.name, record.name)
+            return RowPlan(candidate: item, merge: merge)
+        }
+    }
+
+    private func acceptTitle(new: Int, merged: Int) -> String {
+        switch (new, merged) {
+        case (_, 0): return new == 1 ? "1 Artikel übernehmen" : "\(new) Artikel übernehmen"
+        case (0, _): return merged == 1 ? "1 Artikel ergänzen" : "\(merged) Artikel ergänzen"
+        default: return "\(new) neu, \(merged) ergänzt – übernehmen"
+        }
+    }
+
     var body: some View {
         let result = self.result
         let included = result.records.indices.filter { !excluded.contains($0) }
+        let plans = self.plans(for: result.records)
+        let mergeCount = included.filter { plans[$0].merge }.count
+        let newCount = included.count - mergeCount
 
         VStack(alignment: .leading, spacing: 12) {
             Text("Einkauf importieren").font(.title2.bold())
@@ -75,13 +107,13 @@ struct ImportView: View {
                                     .allowsHitTesting(false)
                             }
                         }
-                        .onChange(of: text) { excluded = [] }
+                        .onChange(of: text) { excluded = []; mergeOverrides = [:] }
                 }
                 .frame(minWidth: 260)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Vorschau").font(.headline)
-                    preview(result)
+                    preview(result, plans: plans)
                 }
                 .frame(minWidth: 380)
             }
@@ -94,9 +126,14 @@ struct ImportView: View {
                 Spacer()
                 Button("Abbrechen") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(included.count == 1 ? "1 Artikel übernehmen" : "\(included.count) Artikel übernehmen") {
+                Button(acceptTitle(new: newCount, merged: mergeCount)) {
                     for index in included {
-                        context.insert(Item(record: result.records[index]))
+                        let record = result.records[index]
+                        if plans[index].merge, let target = plans[index].candidate {
+                            target.apply(target.record.merged(with: record))
+                        } else {
+                            context.insert(Item(record: record))
+                        }
                     }
                     dismiss()
                 }
@@ -105,7 +142,7 @@ struct ImportView: View {
             }
         }
         .padding(20)
-        .frame(minWidth: 820, minHeight: 560)
+        .frame(width: 900, height: 620)
         .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.json, .plainText]) { outcome in
             switch outcome {
             case .success(let url):
@@ -124,7 +161,7 @@ struct ImportView: View {
     }
 
     @ViewBuilder
-    private func preview(_ result: ImportResult) -> some View {
+    private func preview(_ result: ImportResult, plans: [RowPlan]) -> some View {
         List {
             if result.records.isEmpty && result.issues.isEmpty {
                 Text("Noch nichts eingefügt.").foregroundStyle(.secondary)
@@ -147,8 +184,21 @@ struct ImportView: View {
                             Text(ExportFormatter.quantityText(record)).foregroundStyle(.secondary)
                         }
                         Text(details(record)).font(.caption).foregroundStyle(.secondary)
+                        if let candidate = plans[index].candidate {
+                            Picker("", selection: Binding(
+                                get: { plans[index].merge },
+                                set: { mergeOverrides[index] = $0 }
+                            )) {
+                                Text("Neu anlegen").tag(false)
+                                Text("Zu „\(candidate.name)“ (\(candidate.quantityText)) addieren → \(ExportFormatter.quantityNumber(candidate.quantity + record.quantity)) \(candidate.unit)").tag(true)
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .fixedSize()
+                            .controlSize(.small)
+                        }
                         let similar = existingItems.filter { Matching.isSimilar($0.name, record.name) }
-                        if !similar.isEmpty {
+                        if plans[index].candidate == nil && !similar.isEmpty {
                             Text("Schon im Vorrat: " + similar.prefix(3).map { "\($0.name) (\($0.quantityText))" }.joined(separator: ", "))
                                 .font(.caption)
                                 .foregroundStyle(.orange)

@@ -11,7 +11,8 @@ final class AppState {
         case newItem
         case edit(Item)
         case importItems(prefill: String)
-        case export(ExportView.Format)
+        /// `nil` = zuletzt benutztes Format
+        case export(ExportView.Format?)
 
         var id: String {
             switch self {
@@ -52,10 +53,8 @@ struct VorratApp: App {
                 Divider()
                 Button("Einkauf importieren …") { appState.sheet = .importItems(prefill: "") }
                     .keyboardShortcut("i")
-                Button("Vorrat exportieren …") { appState.sheet = .export(.markdown) }
+                Button("Exportieren / Rezeptideen …") { appState.sheet = .export(nil) }
                     .keyboardShortcut("e")
-                Button("Rezeptideen (Prompt) …") { appState.sheet = .export(.recipePrompt) }
-                    .keyboardShortcut("r")
             }
         }
 
@@ -72,7 +71,8 @@ struct VorratApp: App {
         try? fm.createDirectory(at: base, withIntermediateDirectories: true)
         let config = ModelConfiguration(url: base.appendingPathComponent("Vorrat.store"))
         do {
-            let container = try ModelContainer(for: Item.self, configurations: config)
+            // Neue Modelle (z.B. HistoryEntry) werden automatisch ergänzt, bestehende Daten bleiben erhalten.
+            let container = try ModelContainer(for: Item.self, HistoryEntry.self, configurations: config)
             return container
         } catch {
             fatalError("Datenbank konnte nicht geöffnet werden: \(error)")

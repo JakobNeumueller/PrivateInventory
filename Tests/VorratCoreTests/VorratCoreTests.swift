@@ -223,6 +223,84 @@ final class VorratCoreTests: XCTestCase {
         XCTAssertFalse(plain.contains("Meine Wünsche"))
     }
 
+    // MARK: - Zusammenführen
+
+    func testMergeAddsQuantityKeepsEarlierExpiry() {
+        let old = ItemRecord(name: "Vollmilch", category: "Milchprodukte", location: "Kühlschrank", quantity: 1, unit: "l",
+                             purchaseDate: day(2026, 11, 1), expiryDate: day(2026, 11, 28), notes: "Bio")
+        let new = ItemRecord(name: "vollmilch", category: "Sonstiges", location: "Vorratsschrank", quantity: 2, unit: "L",
+                             purchaseDate: day(2026, 11, 26), expiryDate: day(2026, 12, 6), notes: "Aktion")
+        let merged = old.merged(with: new)
+        XCTAssertEqual(merged.quantity, 3)
+        XCTAssertEqual(merged.name, "Vollmilch")
+        XCTAssertEqual(merged.location, "Kühlschrank")
+        XCTAssertEqual(merged.category, "Milchprodukte")
+        XCTAssertEqual(merged.unit, "l")
+        XCTAssertEqual(merged.purchaseDate, day(2026, 11, 26))
+        XCTAssertEqual(merged.expiryDate, day(2026, 11, 28))
+        XCTAssertEqual(merged.notes, "Bio; Aktion")
+    }
+
+    func testMergeExpiryWhenOneSideMissing() {
+        let a = ItemRecord(name: "Reis", purchaseDate: day(2026, 1, 1))
+        let b = ItemRecord(name: "Reis", purchaseDate: day(2026, 2, 1), expiryDate: day(2027, 2, 1))
+        XCTAssertEqual(a.merged(with: b).expiryDate, day(2027, 2, 1))
+        XCTAssertEqual(b.merged(with: a).expiryDate, day(2027, 2, 1))
+        XCTAssertNil(a.merged(with: a).expiryDate)
+        XCTAssertEqual(a.merged(with: a).notes, "")
+    }
+
+    func testMergeCandidateNeedsSameUnitAndPrefersExactName() {
+        let existing = [
+            ItemRecord(name: "Hafermilch", unit: "l"),
+            ItemRecord(name: "Milch", unit: "Pkg"),
+            ItemRecord(name: "Milch", unit: "l"),
+        ]
+        XCTAssertEqual(Matching.mergeCandidate(for: ItemRecord(name: "milch", unit: "L"), in: existing), 2)
+        XCTAssertEqual(Matching.mergeCandidate(for: ItemRecord(name: "Vollmilch", unit: "Pkg"), in: existing), 1)
+        XCTAssertNil(Matching.mergeCandidate(for: ItemRecord(name: "Milch", unit: "g"), in: existing))
+        XCTAssertNil(Matching.mergeCandidate(for: ItemRecord(name: "Reis", unit: "l"), in: existing))
+        XCTAssertTrue(Matching.isSameName("Käse ", "kase"))
+    }
+
+    // MARK: - Statistik
+
+    func testWasteStatsMonthsAndRates() {
+        let history = [
+            HistoryRecord(name: "Joghurt", category: "Milchprodukte", outcome: .discarded, date: day(2026, 11, 2), wasExpired: true),
+            HistoryRecord(name: "joghurt", category: "Milchprodukte", outcome: .discarded, date: day(2026, 10, 30)),
+            HistoryRecord(name: "Salat", category: "Gemüse", outcome: .discarded, date: day(2026, 11, 20)),
+            HistoryRecord(name: "Milch", outcome: .consumed, date: day(2026, 11, 1, hour: 0)),
+            HistoryRecord(name: "Brot", outcome: .consumed, date: day(2026, 11, 25)),
+            HistoryRecord(name: "Pasta", outcome: .consumed, date: day(2026, 10, 31, hour: 23)),
+            HistoryRecord(name: "Uralt", outcome: .consumed, date: day(2025, 1, 1)),
+        ]
+        let stats = WasteStats(history: history, now: now, calendar: calendar)
+        XCTAssertEqual(stats.months.count, 6)
+        XCTAssertEqual(stats.months.first?.start, calendar.date(from: DateComponents(year: 2026, month: 6, day: 1)))
+        XCTAssertEqual(stats.months.last?.start, calendar.date(from: DateComponents(year: 2026, month: 11, day: 1)))
+        XCTAssertEqual(stats.months[0].consumed + stats.months[0].discarded, 0)
+
+        XCTAssertEqual(stats.thisMonth.consumed, 2)
+        XCTAssertEqual(stats.thisMonth.discarded, 2)
+        XCTAssertEqual(stats.lastMonth.consumed, 1)
+        XCTAssertEqual(stats.lastMonth.discarded, 1)
+        XCTAssertEqual(stats.thisMonthWasteRate, 0.5)
+        XCTAssertEqual(stats.lastMonthWasteRate, 0.5)
+
+        XCTAssertEqual(stats.totalDiscarded, 3)
+        XCTAssertEqual(stats.totalConsumed, 4)
+        XCTAssertEqual(stats.topDiscardedItems, [WasteStats.Ranked(name: "Joghurt", count: 2), WasteStats.Ranked(name: "Salat", count: 1)])
+        XCTAssertEqual(stats.topDiscardedCategories.first, WasteStats.Ranked(name: "Milchprodukte", count: 2))
+    }
+
+    func testWasteStatsEmpty() {
+        let stats = WasteStats(history: [], now: now, calendar: calendar)
+        XCTAssertNil(stats.thisMonthWasteRate)
+        XCTAssertTrue(stats.topDiscardedItems.isEmpty)
+        XCTAssertEqual(stats.months.count, 6)
+    }
+
     func testReceiptPromptMentionsFormat() {
         let prompt = AIPrompts.receiptToJSON(today: now, calendar: calendar)
         XCTAssertTrue(prompt.contains("\"items\""))

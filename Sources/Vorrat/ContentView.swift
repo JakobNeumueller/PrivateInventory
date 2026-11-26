@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 import VorratCore
 
 enum SidebarFilter: Hashable {
+    case today
+    case statistics
     case all
     case status(ItemStatus)
     case location(String)
@@ -11,6 +13,8 @@ enum SidebarFilter: Hashable {
 
     var title: String {
         switch self {
+        case .today: return "Heute"
+        case .statistics: return "Statistik"
         case .all: return "Alle Artikel"
         case .status(let s): return s.title
         case .location(let l): return l
@@ -25,16 +29,18 @@ struct ContentView: View {
     @Environment(\.undoManager) private var undoManager
 
     @Query private var items: [Item]
+    @Query(sort: \HistoryEntry.date, order: .reverse) private var history: [HistoryEntry]
 
     @AppStorage(SettingsKey.soonDays) private var soonDays = 3
     @AppStorage(SettingsKey.forgottenDays) private var forgottenDays = 30
 
-    @State private var filter: SidebarFilter? = .all
+    @State private var filter: SidebarFilter? = .today
     @State private var search = ""
     @State private var selection = Set<PersistentIdentifier>()
     @State private var sortOrder = [KeyPathComparator(\Item.expirySortKey)]
 
     private var rules: StatusRules { StatusRules(soonDays: soonDays, forgottenDays: forgottenDays) }
+    private var actions: InventoryActions { InventoryActions(context: context, rules: rules) }
 
     private var trimmedSearch: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -54,7 +60,7 @@ struct ContentView: View {
 
     private func matches(_ item: Item, _ filter: SidebarFilter) -> Bool {
         switch filter {
-        case .all: return true
+        case .today, .statistics, .all: return true
         case .status(let s): return item.status(rules) == s
         case .location(let l): return item.location == l
         case .category(let c): return item.category == c
@@ -90,117 +96,143 @@ struct ContentView: View {
             appState.sheet = .importItems(prefill: text)
             return true
         }
+        .onChange(of: filter) { selection = [] }
         .onAppear { context.undoManager = undoManager }
     }
 
     private var currentTitle: String {
-        trimmedSearch.isEmpty ? (filter ?? .all).title : "Suche: „\(trimmedSearch)\""
+        trimmedSearch.isEmpty ? (filter ?? .all).title : "Suche: „\(trimmedSearch)“"
+    }
+
+    // MARK: - Detailbereich
+
+    @ViewBuilder
+    private var detail: some View {
+        if !trimmedSearch.isEmpty {
+            table
+        } else {
+            switch filter ?? .all {
+            case .today:
+                TodayView(items: items, history: history.map(\.record), rules: rules, actions: actions,
+                          showStatistics: { filter = .statistics })
+            case .statistics:
+                StatisticsView(history: history)
+            default:
+                if items.isEmpty {
+                    ContentUnavailableView {
+                        Label("Noch nichts im Vorrat", systemImage: "refrigerator")
+                    } description: {
+                        Text("Lege Artikel einzeln an oder importiere einen ganzen Einkauf als JSON (z.B. von einer KI aus deinem Kassenzettel erzeugt).")
+                    } actions: {
+                        Button("Artikel anlegen") { appState.sheet = .newItem }
+                        Button("Einkauf importieren") { appState.sheet = .importItems(prefill: "") }
+                    }
+                } else {
+                    table
+                }
+            }
+        }
     }
 
     // MARK: - Tabelle
 
     @ViewBuilder
-    private var detail: some View {
-        if items.isEmpty {
-            ContentUnavailableView {
-                Label("Noch nichts im Vorrat", systemImage: "refrigerator")
-            } description: {
-                Text("Lege Artikel einzeln an oder importiere einen ganzen Einkauf als JSON (z.B. von einer KI aus deinem Kassenzettel erzeugt).")
-            } actions: {
-                Button("Artikel anlegen") { appState.sheet = .newItem }
-                Button("Einkauf importieren") { appState.sheet = .importItems(prefill: "") }
+    private var table: some View {
+        let rows = visibleItems
+        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("") { item in
+                let status = item.status(rules)
+                Image(systemName: status.symbol)
+                    .foregroundStyle(status.color)
+                    .help(status.title)
             }
-        } else {
-            let rows = visibleItems
-            Table(rows, selection: $selection, sortOrder: $sortOrder) {
-                TableColumn("") { item in
-                    let status = item.status(rules)
-                    Image(systemName: status.symbol)
-                        .foregroundStyle(status.color)
-                        .help(status.title)
-                }
-                .width(22)
+            .width(22)
 
-                TableColumn("Name", value: \.name) { item in
-                    HStack(spacing: 6) {
-                        Text(item.name)
-                        if item.openedDate != nil {
-                            Text("geöffnet")
-                                .font(.caption2)
-                                .padding(.horizontal, 4)
-                                .background(.quaternary, in: Capsule())
-                        }
-                    }
-                    .help(item.notes)
-                }
-                .width(min: 140, ideal: 200)
-
-                TableColumn("Menge", value: \.quantity) { item in
-                    Text(item.quantityText).monospacedDigit()
-                }
-                .width(min: 60, ideal: 80)
-
-                TableColumn("Kategorie", value: \.category)
-                    .width(min: 90, ideal: 130)
-
-                TableColumn("Ort", value: \.location)
-                    .width(min: 90, ideal: 120)
-
-                TableColumn("Haltbar bis", value: \.expirySortKey) { item in
-                    if let expiry = item.expiryDate {
-                        let status = item.status(rules)
-                        HStack(spacing: 4) {
-                            Text(expiry, format: .dateTime.day(.twoDigits).month(.twoDigits).year())
-                                .monospacedDigit()
-                            Text(DayMath.expiryDescription(expiry))
-                                .foregroundStyle(status == .expired || status == .expiringSoon ? status.color : .secondary)
-                                .font(.caption)
-                        }
-                    } else {
-                        Text("–").foregroundStyle(.tertiary)
+            TableColumn("Name", value: \.name) { item in
+                let status = item.status(rules)
+                let urgent = status == .expired || status == .expiringSoon
+                HStack(spacing: 6) {
+                    Text(item.name)
+                        .fontWeight(urgent ? .semibold : .regular)
+                        .foregroundStyle(urgent ? status.color : Color.primary)
+                    if item.openedDate != nil {
+                        Text("geöffnet")
+                            .font(.caption2)
+                            .padding(.horizontal, 4)
+                            .background(.quaternary, in: Capsule())
                     }
                 }
-                .width(min: 120, ideal: 190)
+                .help(item.notes)
+            }
+            .width(min: 140, ideal: 200)
 
-                TableColumn("Gekauft", value: \.purchaseDate) { item in
-                    Text(item.purchaseDate, format: .dateTime.day(.twoDigits).month(.twoDigits).year())
-                        .monospacedDigit()
-                }
-                .width(min: 80, ideal: 90)
+            TableColumn("Menge", value: \.quantity) { item in
+                Text(item.quantityText).monospacedDigit()
+            }
+            .width(min: 60, ideal: 80)
 
-                TableColumn("Zuletzt benutzt", value: \.lastTouchedDate) { item in
+            TableColumn("Kategorie", value: \.category)
+                .width(min: 90, ideal: 130)
+
+            TableColumn("Ort", value: \.location)
+                .width(min: 90, ideal: 120)
+
+            TableColumn("Haltbar bis", value: \.expirySortKey) { item in
+                if let expiry = item.expiryDate {
                     let status = item.status(rules)
-                    Text(item.lastUsedDate.map { DayMath.agoDescription($0) } ?? "nie")
-                        .foregroundStyle(status == .forgotten ? status.color : .secondary)
-                }
-                .width(min: 90, ideal: 110)
-            }
-            .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
-                if !ids.isEmpty {
-                    let targets = itemsFor(ids)
-                    Button("Bearbeiten …") { if let first = targets.first { appState.sheet = .edit(first) } }
-                        .disabled(targets.count != 1)
-                    Divider()
-                    Button("Heute benutzt") { markUsed(targets) }
-                    Button("Menge −1") { decrement(targets) }
-                    Button("Aufgebraucht (entfernen)") { remove(targets) }
-                    Divider()
-                    Button("Löschen", role: .destructive) { remove(targets) }
-                }
-            } primaryAction: { ids in
-                if let first = itemsFor(ids).first { appState.sheet = .edit(first) }
-            }
-            .onDeleteCommand { remove(itemsFor(selection)) }
-            .overlay {
-                if rows.isEmpty {
-                    ContentUnavailableView(trimmedSearch.isEmpty ? "Keine Artikel" : "Nicht im Vorrat",
-                                           systemImage: trimmedSearch.isEmpty ? "checkmark.circle" : "magnifyingglass",
-                                           description: Text(trimmedSearch.isEmpty ? "In dieser Ansicht ist nichts." : "„\(trimmedSearch)\" hast du (noch) nicht."))
+                    HStack(spacing: 4) {
+                        Text(expiry, format: .dateTime.day(.twoDigits).month(.twoDigits).year())
+                            .monospacedDigit()
+                        Text(DayMath.expiryDescription(expiry))
+                            .foregroundStyle(status == .expired || status == .expiringSoon ? status.color : .secondary)
+                            .font(.caption)
+                    }
+                } else {
+                    Text("–").foregroundStyle(.tertiary)
                 }
             }
-            .navigationTitle(currentTitle)
-            .navigationSubtitle("\(rows.count) Artikel")
+            .width(min: 120, ideal: 190)
+
+            TableColumn("Gekauft", value: \.purchaseDate) { item in
+                Text(item.purchaseDate, format: .dateTime.day(.twoDigits).month(.twoDigits).year())
+                    .monospacedDigit()
+            }
+            .width(min: 80, ideal: 90)
+
+            TableColumn("Zuletzt benutzt", value: \.lastTouchedDate) { item in
+                let status = item.status(rules)
+                Text(item.lastUsedDate.map { DayMath.agoDescription($0) } ?? "nie")
+                    .foregroundStyle(status == .forgotten ? status.color : .secondary)
+            }
+            .width(min: 90, ideal: 110)
         }
+        .contextMenu(forSelectionType: PersistentIdentifier.self) { ids in
+            if !ids.isEmpty {
+                let targets = itemsFor(ids)
+                Button("Bearbeiten …") { if let first = targets.first { appState.sheet = .edit(first) } }
+                    .disabled(targets.count != 1)
+                Divider()
+                Button("Heute benutzt") { actions.markUsed(targets) }
+                Button("Menge −1") { decrement(targets) }
+                Divider()
+                Button("Aufgebraucht") { remove(targets, outcome: .consumed) }
+                Button("Weggeworfen") { remove(targets, outcome: .discarded) }
+                Divider()
+                Button("Löschen (Fehleingabe)", role: .destructive) { remove(targets, outcome: nil) }
+            }
+        } primaryAction: { ids in
+            if let first = itemsFor(ids).first { appState.sheet = .edit(first) }
+        }
+        .onDeleteCommand { remove(itemsFor(selection), outcome: nil) }
+        .overlay {
+            if rows.isEmpty {
+                ContentUnavailableView(trimmedSearch.isEmpty ? "Keine Artikel" : "Nicht im Vorrat",
+                                       systemImage: trimmedSearch.isEmpty ? "checkmark.circle" : "magnifyingglass",
+                                       description: Text(trimmedSearch.isEmpty ? "In dieser Ansicht ist nichts." : "„\(trimmedSearch)“ hast du (noch) nicht."))
+            }
+        }
+        .navigationTitle(currentTitle)
+        .navigationSubtitle("\(rows.count) Artikel")
     }
 
     // MARK: - Toolbar
@@ -213,7 +245,7 @@ struct ContentView: View {
             }
             .help("Neuen Artikel anlegen (⌘N)")
 
-            Button { markUsed(itemsFor(selection)) } label: {
+            Button { actions.markUsed(itemsFor(selection)) } label: {
                 Label("Heute benutzt", systemImage: "hand.tap")
             }
             .help("Markiert die Auswahl als heute benutzt")
@@ -222,13 +254,19 @@ struct ContentView: View {
             Button { decrement(itemsFor(selection)) } label: {
                 Label("Menge −1", systemImage: "minus.circle")
             }
-            .help("Menge um 1 verringern (bei 1 wird der Artikel entfernt)")
+            .help("Menge um 1 verringern (bei 1 gilt der Artikel als aufgebraucht)")
             .disabled(selection.isEmpty)
 
-            Button { remove(itemsFor(selection)) } label: {
-                Label("Aufgebraucht", systemImage: "checkmark.bin")
+            Button { remove(itemsFor(selection), outcome: .consumed) } label: {
+                Label("Aufgebraucht", systemImage: "checkmark.circle")
             }
             .help("Auswahl aufgebraucht – aus dem Vorrat entfernen (⌘Z macht rückgängig)")
+            .disabled(selection.isEmpty)
+
+            Button { remove(itemsFor(selection), outcome: .discarded) } label: {
+                Label("Weggeworfen", systemImage: "trash")
+            }
+            .help("Auswahl weggeworfen – wird in der Statistik gezählt (⌘Z macht rückgängig)")
             .disabled(selection.isEmpty)
         }
         ToolbarItemGroup(placement: .automatic) {
@@ -237,15 +275,10 @@ struct ContentView: View {
             }
             .help("Einkauf als JSON importieren (⌘I)")
 
-            Button { appState.sheet = .export(.markdown) } label: {
+            Button { appState.sheet = .export(nil) } label: {
                 Label("Exportieren", systemImage: "square.and.arrow.up")
             }
-            .help("Vorrat als Liste oder JSON exportieren (⌘E)")
-
-            Button { appState.sheet = .export(.recipePrompt) } label: {
-                Label("Rezeptideen", systemImage: "fork.knife")
-            }
-            .help("Prompt mit allen Zutaten für Rezeptvorschläge einer KI erstellen (⌘R)")
+            .help("Rezept-Prompt, Bestandsliste oder Backup exportieren (⌘E)")
         }
     }
 
@@ -255,28 +288,15 @@ struct ContentView: View {
         items.filter { ids.contains($0.persistentModelID) }
     }
 
-    private func markUsed(_ targets: [Item]) {
-        let now = Date()
-        for item in targets { item.lastUsedDate = now }
-    }
-
     private func decrement(_ targets: [Item]) {
-        let now = Date()
-        for item in targets {
-            if item.quantity > 1 {
-                item.quantity -= 1
-                item.lastUsedDate = now
-            } else {
-                selection.remove(item.persistentModelID)
-                context.delete(item)
-            }
+        for item in targets where item.quantity <= 1 {
+            selection.remove(item.persistentModelID)
         }
+        actions.decrement(targets)
     }
 
-    private func remove(_ targets: [Item]) {
-        for item in targets {
-            selection.remove(item.persistentModelID)
-            context.delete(item)
-        }
+    private func remove(_ targets: [Item], outcome: RemovalOutcome?) {
+        for item in targets { selection.remove(item.persistentModelID) }
+        actions.remove(targets, outcome: outcome)
     }
 }
